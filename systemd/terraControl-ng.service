@@ -1,0 +1,16 @@
+[Unit]
+Description=Terrarium temperature control daemon NG
+After=syslog.target
+StartLimitIntervalSec=10
+
+[Service]
+Type=simple
+#ExecStart=/usr/sbin/terraControl-ng-ds18b20.py
+#ExecStart=/usr/sbin/terraControl-ng-aht10.py
+#ExecStart=/usr/sbin/terraControl-ng-sht31.py
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+Alias=terraControl-ng.service
