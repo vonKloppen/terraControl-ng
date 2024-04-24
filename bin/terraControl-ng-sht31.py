@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import configparser, syslog, sys, signal
+import RPi.GPIO as gpio
+import configparser, syslog, sys, signal, time, smbus
 from oled import OLED, Font, Graphics
 
 
@@ -13,7 +14,7 @@ def logEvent( logPriority, logMessage ):
     syslog.syslog( getattr( syslog, logPriority ), logMessage )
     
 
-def readConfigFile():
+def readConfigFile(*args):
 
 
     try:
@@ -23,6 +24,7 @@ def readConfigFile():
     except:
 
         logEvent("LOG_ERR", "[ Error ] reading config file.")
+        gpio.cleanup()
         sys.exit(1)
 
     else:
@@ -43,40 +45,132 @@ def initDisplay():
 
 def terminate(signalNumber, frame):
   
-  logEvent("LOG_INFO", "SIGTERM received. Terminating..")
-  logEvent("LOG_INFO", "Turning heater OFF")
-  config["pins"]["heater"].off()
-  config["pins"]["fan"].off()
-  logEvent("LOG_INFO", "Turning light OFF")
-  config["pins"]["light"].off()
+    logEvent("LOG_INFO", "SIGTERM received. Terminating..")
+    
+    logEvent("LOG_INFO", "Turning heater OFF")
+    gpio.output( config["pins"].getint("heater"), gpio.LOW)
 
-  if bool(config["oled"]["enabled"]):
+    logEvent("LOG_INFO", "Turning light OFF")
+    gpio.output( config["pins"].getint("light"), gpio.LOW)
+
+    logEvent("LOG_INFO", "Turning fan OFF")
+    gpio.output( config["pins"].getint("fan"), gpio.LOW)
+ 
+    if config["oled"].getboolean("enabled"):
       
-      updateDisplay("X")
+        updateDisplay("X")
 
-  sys.exit(0)
+    gpio.cleanup()
+    sys.exit(0)
 
 
+def updateDisplay(status):
+
+    dispFont = Font(3)
+    disp.clear()
+
+    if status == "X":
+
+        disp.set_contrast_control(contrastDay)
+        dispFont.print_string(0, 0, "T: NONE")
+        dispFont.print_string(0, 27, "H: NONE")
+
+    else:
+
+        dispFont.print_string(0, 0, "T: " + tempTrimmed)
+        dispFont.print_string(0, 27, "H: " + humTrimmed)
+
+    dispFont = Font(1)
+    dispFont.print_string(73, 57, "Status: " + status)
+    disp.update()
+
+
+def heatingON():
+
+    logEvent("LOG_INFO", "Turning heating ON")
+    gpio.output( config["pins"].getint("heater"), gpio.HIGH)
+    gpio.output( config["pins"].getint("fan"), gpio.HIGH)
+
+    if config["oled"].getboolean("enabled"):
+
+        updateDisplay("H")
+
+def heatingOFF():
+
+    logEvent("LOG_INFO", "Turning heating OFF")
+    gpio.output( config["pins"].getint("heater"), gpio.LOW)
+    gpio.output( config["pins"].getint("fan"), gpio.LOW)
+
+    if config["oled"].getboolean("enabled"):
+
+        updateDisplay("O")
+
+
+def lightsON():
+
+    logEvent("LOG_INFO", "Turning lights ON")
+    gpio.output( config["pins"].getint("light"), gpio.HIGH)
+
+
+def lightsOFF():
+
+    logEvent("LOG_INFO", "Turning lights OFF")
+    gpio.output( config["pins"].getint("light"), gpio.LOW)
+                                                
+
+def readFromSensor():
+
+    try:
+
+#        bus.write_i2c_block_data(config["sensor1"]["sensorAddr"], 0x2C, [0x06])
+        bus.write_i2c_block_data(0x44, 0x2C, [0x06])
+#        sleep(config["sensor1"].getfloat("sensorSleep"))
+        sleep(0.5)
+
+    except:
+
+        logEvent("LOG_INFO", "Error (E1) communicating with sensor. Turning heater off.")
+        gpio.output( config["pins"].getint("heater"), gpio.LOW)
+        gpio.output( config["pins"].getint("fan"), gpio.LOW)
+
+        if config["oled"].getboolean("enabled"):
+
+            updateDisplay("E")
+
+        syslog.closelog()
+        gpio.cleanup()
+        sys.exit(1)
 
 
 
 ## RUN ONCE
+
+### INITIAL CONFIG FILE SETUP
 config = configparser.ConfigParser()
-syslog.openlog(logIdent)
 readConfigFile()
 
-## SETUP OLED IF ENABLED
-if bool(config["oled"]["enabled"]):
+### GPIO SETUP
+gpio.setmode(gpio.BCM)
+gpio.setup( config["pins"].getint("heater"), gpio.OUT)
+gpio.setup( config["pins"].getint("light"), gpio.OUT)
+gpio.setup( config["pins"].getint("fan"), gpio.OUT)
+
+### SETUP LOG IDENTIFICATION STRING
+syslog.openlog(logIdent)
+
+
+### SETUP OLED IF ENABLED
+if config["oled"].getboolean("enabled"):
 
     initDisplay()
 
-## SETUP SIGNAL HANDLING
+### SETUP SIGNAL HANDLING
 
 if __name__ == '__main__':
 
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    signal.signal(signal.SIGHUP, readConfigFile)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGQUIT, terminate)
+    signal.signal(signal.SIGQUIT, signal.SIG_IGN)
     signal.signal(signal.SIGILL, signal.SIG_IGN)
     signal.signal(signal.SIGTRAP, signal.SIG_IGN)
     signal.signal(signal.SIGABRT, signal.SIG_IGN)
@@ -90,16 +184,22 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, terminate)
 
 
+### SETUP SMBUS
+bus = smbus.SMBus(1)
 
+
+
+while True:
 
 # DEBUG
-print(config['sensor1']['sensorAddr'])
-print(bool(config["sensor1"]["enabled"]))
+    print(config['sensor1']['sensorAddr'])
+    print(config["sensor2"].getboolean("enabled"))
+    readFromSensor()
+
+    time.sleep(10)
 
 
 
 
-
-
-
+gpio.cleanup()
 syslog.closelog()
