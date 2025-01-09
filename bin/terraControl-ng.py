@@ -22,9 +22,6 @@ def terminate(signalNumber, frame):
     logMessage("LOG_INFO", "Turning heaters OFF")
     terra1PinHeater.off()
     terra2PinHeater.off()
-    logMessage("LOG_INFO", "Turning fans OFF")
-    terra1PinFan.off()
-    terra2PinFan.off()
     logMessage("LOG_INFO", "Turning lights OFF")
     terra1PinLight.off()
     terra2PinLight.off()
@@ -33,13 +30,13 @@ def terminate(signalNumber, frame):
 
 def reloadConfig(signalNumber, frame):
 
-    global terra1Enabled, terra1Addr, terra1PinHeater, terra1PinLight, terra1PinFan
+    global terra1Enabled, terra1Addr, terra1PinHeater, terra1PinLight
     global terra1HeatingTime, terra1HeatingTimeout, terra1OverheatTimeout
     global terra1TempDay, terra1TempNight, terra1TempMax
     global terra1LogFileTempAll, terra1LogFileTempLast10, terra1LogFileTempLast24h
     global terra1LogFileHumAll, terra1LogFileHumLast10, terra1LogFileHumLast24h
 
-    global terra2Enabled, terra2Addr, terra2PinHeater, terra2PinLight, terra2PinFan
+    global terra2Enabled, terra2Addr, terra2PinHeater, terra2PinLight
     global terra2HeatingTime, terra2HeatingTimeout, terra2OverheatTimeout
     global terra2TempDay, terra2TempNight, terra2TempMax
     global terra2LogFileTempAll, terra2LogFileTempLast10, terra2LogFileTempLast24h
@@ -64,7 +61,6 @@ def reloadConfig(signalNumber, frame):
         terra1Addr = config["terra1"].getint("addr")
         terra1PinHeater = LED(config["terra1"].getint("pinHeater"))
         terra1PinLight = LED(config["terra1"].getint("pinLight"))
-        terra1PinFan = LED(config["terra1"].getint("pinFan"))
         terra1HeatingTime = config["terra1"].getint("heatingTime")
         terra1HeatingTimeout = config["terra1"].getint("heatingTimeout")
         terra1OverheatTimeout = config["terra1"].getint("overheatTimeout")
@@ -81,7 +77,6 @@ def reloadConfig(signalNumber, frame):
         terra2Addr = config["terra2"].getint("addr")
         terra2PinHeater = LED(config["terra2"].getint("pinHeater"))
         terra2PinLight = LED(config["terra2"].getint("pinLight"))
-        terra2PinFan = LED(config["terra2"].getint("pinFan"))
         terra2HeatingTime = config["terra2"].getint("heatingTime")
         terra2HeatingTimeout = config["terra2"].getint("heatingTimeout")
         terra2OverheatTimeout = config["terra2"].getint("overheatTimeout")
@@ -113,6 +108,11 @@ def logMessage(logLevel, message):
 
     syslog.syslog(getattr(syslog, logLevel), message)
 
+def logValues(date, time, temp, hum):
+
+    # DEBUG
+    print(date, time, temp, hum)
+
 def updateDisplay(status, ident, temp, hum):
 
     if displayEnabled:
@@ -134,7 +134,7 @@ def updateDisplay(status, ident, temp, hum):
             client.send(message.encode("utf-8")[:1024])
             client.close()
 
-def readValues(sensorAddr, pinLight, pinHeater, pinFan):
+def readValues(sensorAddr, pinLight, pinHeater):
 
     try:
         
@@ -147,8 +147,6 @@ def readValues(sensorAddr, pinLight, pinHeater, pinFan):
         pinHeater.off()
         logMessage("LOG_INFO", "Turning light OFF")
         pinLight.off()
-        logMessage("LOG_INFO", "Turning fan OFF")
-        pinFan.off()
         syslog.closelog()
         sys.exit(1)
 
@@ -163,13 +161,12 @@ def readValues(sensorAddr, pinLight, pinHeater, pinFan):
       pinHeater.off()
       logMessage("LOG_INFO", "Turning light OFF")
       pinLight.off()
-      logMessage("LOG_INFO", "Turning fan OFF")
-      pinFan.off()
       syslog.closelog()
       sys.exit(1)
 
     else:
 
+# Disabled due to spam
 #      logMessage("LOG_INFO", "Reading temperature..")
       temperature = data[0] * 256 + data[1]
       tempConv = -45 + (175 * temperature / 65535.0)
@@ -179,9 +176,36 @@ def readValues(sensorAddr, pinLight, pinHeater, pinFan):
       
       return(tempTrimmed, humTrimmed)
 
+def setHeater(isEnabled, pinHeater, terraNumber):
+
+    if isEnabled == 1:
+
+        logMessage("LOG_INFO", "Turning terra " + str(terraNumber) + " heater ON")
+        pinHeater.on()
+
+    elif isEnabled == 0:
+
+        logMessage("LOG_INFO", "Turning terra " + str(terraNumber) + " heater OFF")
+        pinHeater.off()
+
+def setLight(isEnabled, pinLight1, pinLight2):
+
+    if isEnabled == 1:
+
+        logMessage("LOG_INFO", "Turning light ON")
+        pinLight1.on()
+        pinLight2.on()
+
+    elif isEnabled == 0:
+
+        logMessage("LOG_INFO", "Turning light OFF")
+        pinLight1.off()
+        pinLight2.off()
+
 
 if __name__ == '__main__':
 
+# Reloading causes crash for some reason
 #    signal.signal(signal.SIGHUP, reloadConfig)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -215,15 +239,66 @@ while True:
         currentTime = strftime("%H:%M", localtime())
         currentDate = strftime("%Y-%m-%d", localtime())
 
+        if currentTime >= globalStartDay and currentTime < globalStartNight:
+
+            terra1TempSet = terra1TempDay
+            terra2TempSet = terra2TempDay
+
+            if not (terra1PinLight.is_active or terra2PinLight.is_active):
+
+                setLight(1, terra1PinLight, terra2PinLight)
+
+        else:
+
+            terra1TempSet = terra1TempNight
+            terra2TempSet = terra2TempNight
+
+            if terra1PinLight.is_active or terra2PinLight.is_active:
+
+                setLight(0, terra1PinLight, terra2PinLight)
+
         if terra1Enabled:
 
             terra1Status = "R"
-            valuesTerra1 = readValues(terra1Addr, terra1PinHeater, terra1PinLight, terra1PinFan)
+            valuesTerra1 = readValues(terra1Addr, terra1PinHeater, terra1PinLight)
+
+            if terra1TempSet > float(valuesTerra1[0]):
+
+                terra1Status = "H"
+
+                if not terra1PinHeater.is_active:
+
+                    setHeater(1, terra1PinHeater, 1)
+
+            elif terra1TempSet <= float(valuesTerra1[0]):
+
+                terra1Status = "S"
+
+                if terra1PinHeater.is_active:
+
+                    setHeater(0, terra1PinHeater, 1)
+
 
         if terra2Enabled:
             
             terra2Status = "R"
-            valuesTerra2 = readValues(terra2Addr, terra2PinHeater, terra2PinLight, terra2PinFan)
+            valuesTerra2 = readValues(terra2Addr, terra2PinHeater, terra2PinLight)
+
+            if terra2TempSet > float(valuesTerra2[0]):
+
+                terra2Status = "H"
+
+                if not terra2PinHeater.is_active:
+
+                    setHeater(1, terra2PinHeater, 2)
+
+            elif terra2TempSet <= float(valuesTerra2[0]):
+
+                terra2Status = "S"
+                
+                if terra2PinHeater.is_active:
+
+                    setHeater(0, terra2PinHeater, 2)
 
     else:
 
@@ -245,6 +320,16 @@ while True:
 
         previousEpoch = currentEpoch
 
+# This point is never reached, but for safety..
 
-
+updateDisplay("X","1","0","0")
+logMessage("LOG_INFO", "SIGTERM received. Terminating..")
+logMessage("LOG_INFO", "Turning heaters OFF")
+terra1PinHeater.off()
+terra2PinHeater.off()
+logMessage("LOG_INFO", "Turning lights OFF")
+terra1PinLight.off()
+terra2PinLight.off()
+syslog.closelog()
+sys.exit(0)
 syslog.closelog()

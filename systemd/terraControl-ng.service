@@ -5,9 +5,7 @@ StartLimitIntervalSec=10
 
 [Service]
 Type=simple
-#ExecStart=/usr/sbin/terraControl-ng-ds18b20.py
-#ExecStart=/usr/sbin/terraControl-ng-aht10.py
-#ExecStart=/usr/sbin/terraControl-ng-sht31.py
+ExecStart=/sbin/terraControl-ng.py
 KillMode=process
 Restart=on-failure
 
