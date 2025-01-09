@@ -93,7 +93,6 @@ def reloadConfig(signalNumber, frame):
         globalStartNight = config["global"]["startNight"]
 
         globalLogIdent = config["global"]["logIdent"]
-        globalLogsPath = config["global"]["logsPath"]
 
         displayEnabled = config["display"].getboolean("displayEnabled")
         displaySocketType = config["display"]["socketType"]
@@ -107,10 +106,20 @@ def logMessage(logLevel, message):
 
     syslog.syslog(getattr(syslog, logLevel), message)
 
-def logValues(date, time, temp, hum):
+def logValues(fileName, date, time, value):
 
-    # DEBUG
-    print(date, time, temp, hum)
+    try:
+
+        f = open(fileName, "a")
+
+    except:
+
+        logMessage("LOG_ERR", "Failed to open log file" + fileName)
+
+    else:
+
+        f.writelines(date + "," + time + "," + str(value))
+        f.close()
 
 def updateDisplay(status, ident, temp, hum):
 
