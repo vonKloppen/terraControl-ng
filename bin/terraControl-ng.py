@@ -42,7 +42,7 @@ def reloadConfig(signalNumber, frame):
     global terra2LogFileTempAll, terra2LogFileTempLast10, terra2LogFileTempLast24h
     global terra2LogFileHumAll, terra2LogFileHumLast10, terra2LogFileHumLast24h
 
-    global globalStartDay, globalStartNight, globalCheckInterval
+    global globalStartDay, globalStartNight
     global globalLogIdent, globalLogsPath
 
     global displayEnabled, displaySocketType, displaySocketFile, displayBindIP, displayBindPort 
@@ -91,7 +91,6 @@ def reloadConfig(signalNumber, frame):
 
         globalStartDay = config["global"]["startDay"]
         globalStartNight = config["global"]["startNight"]
-        globalCheckInterval = config["global"].getint("checkInterval")
 
         globalLogIdent = config["global"]["logIdent"]
         globalLogsPath = config["global"]["logsPath"]
