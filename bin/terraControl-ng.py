@@ -9,10 +9,13 @@ configFile = "/etc/terraControl/terraControl-ng.config"
 
 bus = smbus2.SMBus(1)
 currentEpoch = 0
-previousEpoch = 0
-globalLogIdent = "terraControl-ng"
+previousEpoch = int(time())
+globalsLogIdent = "terraControl-ng"
 terra1Status = "S"
 terra2Status = "S"
+currentDisplay = 0
+valuesTerra1 = [0, 0]
+valuesTerra2 = [0, 0]
 
 
 def terminate(signalNumber, frame):
@@ -33,19 +36,19 @@ def reloadConfig(signalNumber, frame):
     global terra1Enabled, terra1Addr, terra1PinHeater, terra1PinLight
     global terra1HeatingTime, terra1HeatingTimeout, terra1OverheatTimeout
     global terra1TempDay, terra1TempNight, terra1TempMax
-    global terra1LogFileTempAll, terra1LogFileTempLast10, terra1LogFileTempLast24h
-    global terra1LogFileHumAll, terra1LogFileHumLast10, terra1LogFileHumLast24h
+    global terra1LogFileTemp
+    global terra1LogFileHum
 
     global terra2Enabled, terra2Addr, terra2PinHeater, terra2PinLight
     global terra2HeatingTime, terra2HeatingTimeout, terra2OverheatTimeout
     global terra2TempDay, terra2TempNight, terra2TempMax
-    global terra2LogFileTempAll, terra2LogFileTempLast10, terra2LogFileTempLast24h
-    global terra2LogFileHumAll, terra2LogFileHumLast10, terra2LogFileHumLast24h
+    global terra2LogFileTemp
+    global terra2LogFileHum
 
-    global globalStartDay, globalStartNight
-    global globalLogIdent, globalLogsPath
+    global globalsStartDay, globalsStartNight
+    global globalsLogIdent, globalsLogsUpdateInterval
 
-    global displayEnabled, displaySocketType, displaySocketFile, displayBindIP, displayBindPort 
+    global displayEnabled, displayUpdateInterval, displaySocketType, displaySocketFile, displayBindIP, displayBindPort 
 
 
     if not os.path.exists(configFile):
@@ -66,12 +69,8 @@ def reloadConfig(signalNumber, frame):
         terra1OverheatTimeout = config["terra1"].getint("overheatTimeout")
         terra1TempDay = config["terra1"].getint("tempDay")
         terra1TempNight = config["terra1"].getint("tempNight")
-        terra1LogFileTempAll = config["terra1"]["logFileTempAll"]
-        terra1LogFileTempLast10 = config["terra1"]["logFileTempLast10"]
-        terra1LogFileTempLast24h = config["terra1"]["logFileTempLast24h"]
-        terra1LogFileHumAll = config["terra1"]["logFileHumAll"]
-        terra1LogFileHumLast10 = config["terra1"]["logFileHumLast10"]
-        terra1LogFileHumLast24h = config["terra1"]["logFileHumLast24h"]
+        terra1LogFileTemp = config["terra1"]["logFileTemp"]
+        terra1LogFileHum = config["terra1"]["logFileHum"]
 
         terra2Enabled = config["terra2"].getboolean("enabled")
         terra2Addr = config["terra2"].getint("addr")
@@ -82,19 +81,17 @@ def reloadConfig(signalNumber, frame):
         terra2OverheatTimeout = config["terra2"].getint("overheatTimeout")
         terra2TempDay = config["terra2"].getint("tempDay")
         terra2TempNight = config["terra2"].getint("tempNight")
-        terra2LogFileTempAll = config["terra2"]["logFileTempAll"]
-        terra2LogFileTempLast10 = config["terra2"]["logFileTempLast10"]
-        terra2LogFileTempLast24h = config["terra2"]["logFileTempLast24h"]
-        terra2LogFileHumAll = config["terra2"]["logFileHumAll"]
-        terra2LogFileHumLast10 = config["terra2"]["logFileHumLast10"]
-        terra2LogFileHumLast24h = config["terra2"]["logFileHumLast24h"]
+        terra2LogFileTemp = config["terra2"]["logFileTemp"]
+        terra2LogFileHum = config["terra2"]["logFileHum"]
 
-        globalStartDay = config["global"]["startDay"]
-        globalStartNight = config["global"]["startNight"]
+        globalsStartDay = config["globals"]["startDay"]
+        globalsStartNight = config["globals"]["startNight"]
 
-        globalLogIdent = config["global"]["logIdent"]
+        globalsLogIdent = config["globals"]["logIdent"]
+        globalsLogsUpdateInterval = config["globals"].getint("logsUpdateInterval")
 
         displayEnabled = config["display"].getboolean("displayEnabled")
+        displayUpdateInterval = config["display"].getint("displayUpdateInterval")
         displaySocketType = config["display"]["socketType"]
         displaySocketFile = config["display"]["socketFile"]
         displayBindIP = config["display"]["bindIP"]
@@ -114,12 +111,45 @@ def logValues(fileName, date, time, value):
 
     except:
 
-        logMessage("LOG_ERR", "Failed to open log file" + fileName)
+        logMessage("LOG_ERR", "Failed to open log file " + fileName)
 
     else:
 
-        f.writelines(date + "," + time + "," + str(value))
+        f.writelines(date + " " + time + "," + str(value) + "\n")
         f.close()
+
+def trimLogFile(fileName, date, time, value, lines):
+
+    try:
+
+        f = open(fileName, "r")
+
+    except:
+
+        logMessage("LOG_ERR", "Failed to open log file " + fileName)
+
+    else:
+
+        content = f.readlines()
+
+        try:
+
+            f = open(fileName, "w")
+
+        except:
+
+            logMessage("LOG_ERR", "Failed to open log file " + fileName)
+
+        else:
+
+            for x in range(-1, -abs(lines), -1):
+
+                f.writelines(date, + " " + time + "," + value)
+
+            f.close()
+
+
+
 
 def updateDisplay(status, ident, temp, hum):
 
@@ -232,22 +262,20 @@ if __name__ == '__main__':
 
 
 reloadConfig(signal.SIGHUP, "X")
-syslog.openlog(globalLogIdent)
-currentDisplay = 0
-valuesTerra1 = ["INIT", "INIT"]
-valuesTerra2 = ["INIT", "INIT"]
+syslog.openlog(globalsLogIdent)
 
 
 while True:
 
     currentEpoch = int(time())
+    epochDiff = currentEpoch - previousEpoch
 
-    if (currentEpoch - previousEpoch) < 10:
+    currentTime = strftime("%H:%M", localtime())
+    currentDate = strftime("%Y-%m-%d", localtime())
+
+    if epochDiff < globalsLogsUpdateInterval:
       
-        currentTime = strftime("%H:%M", localtime())
-        currentDate = strftime("%Y-%m-%d", localtime())
-
-        if currentTime >= globalStartDay and currentTime < globalStartNight:
+        if currentTime >= globalsStartDay and currentTime < globalsStartNight:
 
             terra1TempSet = terra1TempDay
             terra2TempSet = terra2TempDay
@@ -308,23 +336,39 @@ while True:
 
                     setHeater(0, terra2PinHeater, 2)
 
+        sleep(1)
+
+        if (epochDiff % displayUpdateInterval == 0):
+
+            if terra1Enabled and currentDisplay != 1:
+
+                updateDisplay(terra1Status, "1", valuesTerra1[0], valuesTerra1[1] )
+
+                if terra2Enabled:
+
+                    currentDisplay = 1
+
+            elif terra2Enabled and currentDisplay != 2:
+
+                updateDisplay(terra2Status, "2", valuesTerra2[0], valuesTerra2[1] )
+
+                if terra2Enabled:
+
+                    currentDisplay = 2
+
+
     else:
 
-        if terra1Enabled and currentDisplay != 1:
 
-            updateDisplay(terra1Status, "1", valuesTerra1[0], valuesTerra1[1] )
+        if terra1Enabled:
 
-            if terra2Enabled:
+            logValues(terra1LogFileTemp, currentDate, currentTime, valuesTerra1[0])
+            logValues(terra1LogFileHum, currentDate, currentTime, valuesTerra1[1])
 
-                currentDisplay = 1
+        if terra2Enabled:
 
-        elif terra2Enabled and currentDisplay != 2:
-
-            updateDisplay(terra2Status, "2", valuesTerra2[0], valuesTerra2[1] )
-
-            if terra2Enabled:
-
-                currentDisplay = 2
+            logValues(terra2LogFileTemp, currentDate, currentTime, valuesTerra2[0])
+            logValues(terra2LogFileHum, currentDate, currentTime, valuesTerra2[1])
 
         previousEpoch = currentEpoch
 
