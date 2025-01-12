@@ -1,0 +1,14 @@
+[Unit]
+Description=TerraControl camera shot daemon
+After=syslog.target
+StartLimitIntervalSec=10
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/terraShot.py
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+Alias=terraShot.service

@@ -148,9 +148,6 @@ def trimLogFile(fileName, date, time, value, lines):
 
             f.close()
 
-
-
-
 def updateDisplay(status, ident, temp, hum):
 
     if displayEnabled:
@@ -314,7 +311,6 @@ while True:
 
                     setHeater(0, terra1PinHeater, 1)
 
-
         if terra2Enabled:
             
             terra2Status = "R"
@@ -356,9 +352,7 @@ while True:
 
                     currentDisplay = 2
 
-
     else:
-
 
         if terra1Enabled:
 
