@@ -5,7 +5,7 @@ from time import time, localtime, strftime, sleep
 from gpiozero import LED
 
 
-configFile = "/etc/terraControl/terraControl-ng.config"
+configFile = "/etc/terraControl-ng/terraControl-ng.config"
 
 bus = smbus2.SMBus(1)
 currentEpoch = 0
@@ -147,6 +147,9 @@ def trimLogFile(fileName, date, time, value, lines):
                 f.writelines(date, + " " + time + "," + value)
 
             f.close()
+
+
+
 
 def updateDisplay(status, ident, temp, hum):
 
@@ -296,6 +299,7 @@ while True:
             valuesTerra1 = readValues(terra1Addr, terra1PinHeater, terra1PinLight)
 
             if terra1TempSet > float(valuesTerra1[0]):
+#            if terra1TempSet - float(valuesTerra1[0]) > 0.2:  # Reduces relay flapping
 
                 terra1Status = "H"
 
@@ -311,12 +315,14 @@ while True:
 
                     setHeater(0, terra1PinHeater, 1)
 
+
         if terra2Enabled:
             
             terra2Status = "R"
             valuesTerra2 = readValues(terra2Addr, terra2PinHeater, terra2PinLight)
 
-            if terra2TempSet > float(valuesTerra2[0]):
+#            if terra2TempSet > float(valuesTerra2[0]):
+            if terra2TempSet - float(valuesTerra2[0]) > 0.2:  # Reduces relay flapping
 
                 terra2Status = "H"
 
@@ -352,7 +358,9 @@ while True:
 
                     currentDisplay = 2
 
+
     else:
+
 
         if terra1Enabled:
 
