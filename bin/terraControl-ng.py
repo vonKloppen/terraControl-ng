@@ -118,7 +118,7 @@ def logValues(fileName, date, time, value):
         f.writelines(date + " " + time + "," + str(value) + "\n")
         f.close()
 
-def trimLogFile(fileName, date, time, value, lines):
+def trimLogFile(fileName):
 
     try:
 
@@ -142,9 +142,9 @@ def trimLogFile(fileName, date, time, value, lines):
 
         else:
 
-            for x in range(-1, -abs(lines), -1):
+            for x in range(-144, 0):
 
-                f.writelines(date, + " " + time + "," + value)
+                f.writelines(content[x])
 
             f.close()
 
@@ -299,7 +299,6 @@ while True:
             valuesTerra1 = readValues(terra1Addr, terra1PinHeater, terra1PinLight)
 
             if terra1TempSet > float(valuesTerra1[0]):
-#            if terra1TempSet - float(valuesTerra1[0]) > 0.2:  # Reduces relay flapping
 
                 terra1Status = "H"
 
@@ -321,8 +320,7 @@ while True:
             terra2Status = "R"
             valuesTerra2 = readValues(terra2Addr, terra2PinHeater, terra2PinLight)
 
-#            if terra2TempSet > float(valuesTerra2[0]):
-            if terra2TempSet - float(valuesTerra2[0]) > 0.2:  # Reduces relay flapping
+            if terra2TempSet - float(valuesTerra2[0]) > 0.2:
 
                 terra2Status = "H"
 
@@ -365,12 +363,16 @@ while True:
         if terra1Enabled:
 
             logValues(terra1LogFileTemp, currentDate, currentTime, valuesTerra1[0])
+            trimLogFile(terra1LogFileTemp)
             logValues(terra1LogFileHum, currentDate, currentTime, valuesTerra1[1])
+            trimLogFile(terra1LogFileHum)
 
         if terra2Enabled:
 
             logValues(terra2LogFileTemp, currentDate, currentTime, valuesTerra2[0])
+            trimLogFile(terra2LogFileTemp)
             logValues(terra2LogFileHum, currentDate, currentTime, valuesTerra2[1])
+            trimLogFile(terra2LogFileHum)
 
         previousEpoch = currentEpoch
 
