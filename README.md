@@ -3,6 +3,8 @@
 It's a simple "daemon" for monitoring temperature and humidity in terrarium, using different sensors and Raspberry PI Zero.
 It creates log as csv file and logs to syslog. Also it can control light and camera.
 
+Currently it supports only sht-31 sensors.
+
 
 ***Be aware that this is highly customized sollution and a work in progress and you should probably not use this code for controling temperature in terrarium with live animals!***
 
@@ -41,6 +43,10 @@ It creates log as csv file and logs to syslog. Also it can control light and cam
 - [x] Monitoring service
 - [x] Clean shutdown of PI
 - [x] Logging to syslog
+
+### Hardware
+- add diagrams and instructions for building fully working project with DIY heater and off-shelf one.
+
 
 ## **BUGS**
 Occasionally it crashes OS beyond recovery - probably due to bug in i2c implementation in Raspbian.
